@@ -1,4 +1,6 @@
 <?php
+$existing_links = array();
+
 function exec_time_wrapper($callback, ...$args) {
   $exec_time_start = microtime(true);
 
@@ -18,7 +20,7 @@ function read_csv() {
 
   if (($handle = fopen('raw_db.csv', 'r')) !== FALSE) {
     while (($data = fgetcsv($handle, 1000, ',')) !== FALSE) {
-      $url = gen_url($data[0]);
+      $url = gen_url();
 
       $generated_links[] = array('link' => $url, 'data' => $data[0]);
 
@@ -34,21 +36,19 @@ function read_csv() {
   }
 };
 
-function find_data($get_link) {
-  $row = 1;
+function read_json($get_link) {
+  $json_string = file_get_contents('short_links.json');
+  $parsed_json = json_decode($json_string, true);
   $link_found = false;
 
-  if (($handle = fopen('raw_db.csv', 'r')) !== FALSE) {
-    while (($data = fgetcsv($handle, 1000, ',')) !== FALSE) {
-      if ($get_link === gen_url($data[0])) {
-        $link_found = true;
-        echo "<p><b>Data found:</b> $data[0]</p><br/>";
-      }
+  foreach ($parsed_json['links'] as $value) {
+    $link = $value['link'];
+    $data = $value['data'];
 
-      $row++;
+    if ($get_link === $link) {
+      $link_found = true;
+      echo "<p><b>Data found:</b> $data</p><br/>";
     }
-
-    fclose($handle);
   }
 
   if (!$link_found) {
@@ -56,28 +56,26 @@ function find_data($get_link) {
   }
 }
 
-function gen_url($str) {
-  $hash_array = array();
-  $hash = '';
+function gen_url() {
   $characters = '0123456789bdfghijklmnqrstuvwzDFGHIJLNQRSUVWYZ';
-  $size = 6;
+  $characters_length = strlen($characters);
+  $url = '';
 
-  // Пробегаемся по всей переданной сроке
-  for ($i = 0; $i < strlen($str); $i++) {
-    // И перезаписываем значения в массиве хэша,
-    // пока не пройдемся по всей строке
-    // Это нужно для предсказуемой и уникальной
-    // генерации короткой ссылки
-    for ($j = 0; $j < $size; $j++) {
-        $hash_array[$j] = ($hash_array[$j] + ord($str[$i]) + $j + $i + $size) % strlen($characters);
+  // Первичная генерация короткой ссылки
+  for ($i = 0; $i < 6; $i++) {
+    $url .= $characters[rand(0, $characters_length - 1)];
+  }
+
+  // Убеждаемся что она не повторяется с раннее созданными ссылками
+  for ($i = 0; $i < count($existing_links); $i++) {
+    while ($existing_links[$i] === $url) {
+      for ($i = 0; $i < 6; $i++) {
+        $url .= $characters[rand(0, $characters_length - 1)];
+      }
     }
   }
 
-  for ($i = 0; $i < $size; $i++) {
-    $hash .= $characters[$hash_array[$i]];
-  }
-
-  return $hash;
+  return $url;
 }
 
 function write_to_json($data) {
@@ -95,6 +93,6 @@ if ($_GET["gen"] === 'true') {
 }
 
 if($_GET["code"]) {
-  echo exec_time_wrapper('find_data', $_GET["code"]);
+  echo exec_time_wrapper('read_json', $_GET["code"]);
 }
-?>
+?> 
